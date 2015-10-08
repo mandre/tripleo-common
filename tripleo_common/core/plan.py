@@ -20,6 +20,7 @@ import six
 from swiftclient import exceptions as swiftexceptions
 
 from tripleo_common.core import exception
+from tripleo_common.utils import capabilities
 from tripleo_common.utils import meta
 from tripleo_common.utils import templates
 
@@ -154,6 +155,31 @@ class PlanManager(object):
             six.raise_from(exception.HeatValidationFailedError(msg=exc), exc)
 
         return params
+
+    def get_deployment_plan_environments(self, plan_name):
+        """Get capabilities map with enabled flags on environment files
+
+        :param plan_name: The name of the plan and container name
+        :type plan_name: str
+        :return: a dictionary of the capabilities mapping for a given plan
+        :rtype: dict
+        """
+        plan = self.get_plan(plan_name)
+        return capabilities.get_deployment_plan_environments(plan.files)
+
+    def update_deployment_plan_environments(self, plan_name, environments):
+        """Update plan's environment files with enabled flags
+
+        :param plan_name: The name of the plan and container name
+        :type plan_name: str
+        :param environments: A mapping of file path and 'True' or 'False'
+        :type environments: dict
+        """
+
+        plan = self.get_plan(plan_name)
+        plan_files = capabilities.update_deployment_plan_environments(
+            plan.files, environments)
+        self.update_plan(plan_name, plan_files)
 
     def update_deployment_parameters(self, plan_name, deployment_parameters):
         """Update the deployment parameters
