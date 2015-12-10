@@ -21,6 +21,7 @@ from oslo_log import log
 from oslo_middleware import cors
 
 from tripleo_common.api import utils
+from tripleo_common.api import v1
 from tripleo_common import conf  # noqa
 from tripleo_common.core import exception
 from tripleo_common.core.i18n import _
@@ -112,6 +113,7 @@ def create_app():
         response.status_code = error.status_code
         return response
 
+    app.register_blueprint(v1.v1, url_prefix='/v1')
     app.wsgi_app = cors.CORS(app.wsgi_app, cfg.CONF)
 
     if utils.get_auth_strategy() != 'noauth':

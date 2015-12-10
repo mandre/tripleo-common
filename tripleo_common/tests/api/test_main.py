@@ -14,32 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
-
-from oslo_config import cfg
-
-from tripleo_common.api import main
-from tripleo_common.tests import base
-
-CONF = cfg.CONF
+from tripleo_common.tests.api import base
 
 
-class BaseAPITest(base.TestCase):
-
-    def setUp(self):
-        super(BaseAPITest, self).setUp()
-        CONF([], project='tripleo-common')
-        app = main.create_app()
-        app.config['TESTING'] = True
-        self.app = app.test_client()
-        CONF.set_override('auth_strategy', 'noauth')
-
-    def assertJSONEquals(self, expected, json_string):
-        parsed_json = json.loads(json_string.decode('utf-8'))
-        self.assertEqual(expected, parsed_json)
-
-
-class APIMainTestCase(BaseAPITest):
+class APIMainTestCase(base.BaseAPITest):
 
     def test_root(self):
         res = self.app.get('/')
@@ -102,4 +80,17 @@ class APIMainTestCase(BaseAPITest):
             'error': {
                 'message': '404: Not Found'
             }
+        }, res.data)
+
+    def test_v1_root(self):
+        res = self.app.get('/v1')
+        self.assertEqual(200, res.status_code)
+        self.assertJSONEquals({
+            'resources': [{
+                'links': [{
+                    'href': 'http://localhost/v1/plans',
+                    'rel': u'self'
+                }],
+                'name': u'plans'
+            }]
         }, res.data)
