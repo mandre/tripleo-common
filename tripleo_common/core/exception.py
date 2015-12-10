@@ -16,6 +16,7 @@ import logging
 import six
 from six import reraise as raise_
 import sys
+import traceback
 
 from tripleo_common.core.i18n import _
 from tripleo_common.core.i18n import _LE
@@ -33,6 +34,7 @@ class TripleoCommonException(Exception):
     property. That msg_fmt will get printf'd with the keyword arguments
     provided to the constructor.
     """
+    status_code = 500
     message = _("An unknown exception occurred.")
 
     def __init__(self, **kwargs):
@@ -58,16 +60,40 @@ class TripleoCommonException(Exception):
     def __deepcopy__(self, memo):
         return self.__class__(**self.kwargs)
 
+    def to_dict(self):
+        return {
+            'message': self.message,
+            'exception': traceback.format_exc(),
+        }
+
+
+class AuthenticationRequiredError(TripleoCommonException):
+    status_code = 401
+    msg_fmt = _('Authentication required')
+
+
+class AccessDeniedError(TripleoCommonException):
+    status_code = 403
+    msg_fmt = _('Access denied')
+
+
+class VersionNotFoundError(TripleoCommonException):
+    status_code = 404
+    msg_fmt = _("Version not found.")
+
 
 class StackInUseError(TripleoCommonException):
+    status_code = 406
     msg_fmt = _("Cannot delete a plan that has an associated stack.")
 
 
 class PlanDoesNotExistError(TripleoCommonException):
+    status_code = 404
     msg_fmt = _("A plan with the name %(name)s does not exist.")
 
 
 class PlanAlreadyExistsError(TripleoCommonException):
+    status_code = 409
     msg_fmt = _("A plan with the name %(name)s already exists.")
 
 
