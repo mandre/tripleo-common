@@ -19,6 +19,7 @@ import json
 from oslo_config import cfg
 
 from tripleo_common.api import main
+from tripleo_common.api import utils
 from tripleo_common.tests import base
 
 
@@ -34,6 +35,13 @@ class BaseAPITest(base.TestCase):
         app.config['TESTING'] = True
         self.app = app.test_client()
         CONF.set_override('auth_strategy', 'noauth')
+        CONF.set_override('validations_base_dir', 'tripleo_common/tests/api')
+        utils.prepare_database()
+
+    def tearDown(self):
+        super(BaseAPITest, self).tearDown()
+        # Ensure we run tests in isolation
+        utils.DB_VALIDATIONS = utils.DB['validations']
 
     def assertJSONEquals(self, expected, json_string):
         parsed_json = json.loads(json_string.decode('utf-8'))

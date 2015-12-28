@@ -144,6 +144,8 @@
 # The green thread pool size. (integer value)
 #max_concurrency = 1000
 
+# Path to dir containing validations and stages (string value)
+#validations_base_dir =
 
 [cors]
 

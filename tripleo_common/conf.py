@@ -43,6 +43,9 @@ SERVICE_OPTS = [
     cfg.IntOpt('max_concurrency',
                default=1000,
                help='The green thread pool size.'),
+    cfg.StrOpt('validations_base_dir',
+               default='',
+               help='Path to dir containing validations and stages'),
 ]
 
 

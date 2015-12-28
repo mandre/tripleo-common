@@ -153,6 +153,8 @@ def main(args=sys.argv[1:]):  # pragma: no cover
 
     app = create_app()
 
+    utils.prepare_database()
+
     app.run(**app_kwargs)
 
 
