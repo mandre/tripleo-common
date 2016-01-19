@@ -13,96 +13,12 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-import glob
-import logging
-from os import path
-import yaml
-
-from oslo_config import cfg
-
-
 # Import explicitly in this order to fix the import issues:
 # https://bugzilla.redhat.com/show_bug.cgi?id=1065251
 import ansible.playbook
-import ansible.constants as C
+import ansible.constants as C  # flake8: noqa
 import ansible.utils.template
-from ansible import errors
-from ansible import callbacks
-from ansible import utils
-from ansible.color import ANSIBLE_COLOR, stringc
-from ansible.callbacks import display
-
-LOG = logging.getLogger(__name__)
-
-CONF = cfg.CONF
-
-DEFAULT_METADATA = {
-    'name': 'Unnamed',
-    'description': 'No description',
-    'stage': 'Default stage',
-}
-
-
-def get_validation_metadata(validation, key):
-    try:
-        return validation[0]['vars']['metadata'][key]
-    except KeyError:
-        return DEFAULT_METADATA.get(key)
-
-
-def get_all_validations():
-    '''Loads all validations.'''
-    paths = glob.glob('{}/validations/*.yaml'.format(CONF.validations_base_dir))
-    result = {}
-    for index, validation_path in enumerate(sorted(paths)):
-        with open(validation_path) as f:
-            validation = yaml.safe_load(f.read())
-            # TODO: switch to generating a proper UUID. We need to figure out
-            # how to make sure we always assign the same ID to the same test.
-            uuid = str(index + 1)
-            result[uuid] = {
-                'uuid': uuid,
-                'playbook': validation_path,
-                'name': get_validation_metadata(validation, 'name'),
-                'description': get_validation_metadata(validation, 'description'),
-            }
-    return result
-
-
-def get_all_stages():
-    '''Loads all validation types and includes the related validations.'''
-    paths = glob.glob('{}/stages/*.yaml'.format(CONF.validations_base_dir))
-    result = {}
-    all_validations = get_all_validations().values()
-    for index, stage_path in enumerate(sorted(paths)):
-        with open(stage_path) as f:
-            stage = yaml.safe_load(f.read())
-            stage_uuid = str(index + 1)
-            validations = included_validation(stage, stage_path, all_validations)
-            result[stage_uuid] = {
-                'uuid': stage_uuid,
-                'name': get_validation_metadata(stage, 'name'),
-                'description': get_validation_metadata(stage, 'description'),
-                'stage': get_validation_metadata(stage, 'stage'),
-                'validations': validations,
-            }
-    return result
-
-
-def included_validation(stage, stage_path, all_validations):
-    '''Returns all validations included in the validation_type.'''
-    validations = []
-    for entry in stage:
-        if 'include' in entry:
-            included_playbook_path = entry['include']
-            stage_directory = path.dirname(stage_path)
-            normalised_path = path.normpath(
-                path.join(stage_directory, included_playbook_path))
-            matching_validations = [validation for validation in all_validations
-                                    if validation['playbook'] == normalised_path]
-            if len(matching_validations) > 0:
-                validations.append(matching_validations[0])
-    return validations
+from ansible import callbacks  # flake8: noqa
 
 
 class ValidationCancelled(Exception):
@@ -110,7 +26,7 @@ class ValidationCancelled(Exception):
 
 
 class SilentPlaybookCallbacks(object):
-    ''' Unlike callbacks.PlaybookCallbacks this doesn't print to stdout. '''
+    '''Unlike callbacks.PlaybookCallbacks this doesn't print to stdout.'''
 
     def __init__(self, cancel_event):
         self.cancel_event = cancel_event
@@ -164,13 +80,13 @@ class SilentPlaybookCallbacks(object):
         callbacks.call_callback_module('playbook_on_stats', stats)
 
 
-def run(validation, cancel_event):
+def run(playbook, cancel_event):
     C.HOST_KEY_CHECKING = False
     stats = callbacks.AggregateStats()
     playbook_callbacks = SilentPlaybookCallbacks(cancel_event)
     runner_callbacks = callbacks.DefaultRunnerCallbacks()
     playbook = ansible.playbook.PlayBook(
-        playbook=validation['playbook'],
+        playbook=playbook,
         # TODO we should use a dynamic inventory based on data coming from
         # tripleo-common/heat/ironic
         # http://docs.ansible.com/ansible/developing_api.html

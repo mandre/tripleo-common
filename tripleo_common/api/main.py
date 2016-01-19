@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import re
 import sys
 
@@ -20,12 +21,16 @@ from oslo_config import cfg
 from oslo_log import log
 from oslo_middleware import cors
 
+from tripleo_common.api import database
 from tripleo_common.api import utils
 from tripleo_common.api import v1
 from tripleo_common import conf  # noqa
 from tripleo_common.core import exception
 from tripleo_common.core.i18n import _
 from tripleo_common.core.i18n import _LW
+from tripleo_common.core import validation_manager
+
+from flask import g
 
 
 CONF = cfg.CONF
@@ -47,6 +52,12 @@ _DEFAULT_API_VERSION = _format_version(MINIMUM_API_VERSION)
 def create_app():
 
     app = flask.Flask(__name__)
+
+    @app.teardown_appcontext
+    def close_connection(exception):
+        db = getattr(g, '_database', None)
+        if db is not None:
+            db.close()
 
     @app.before_request
     def check_api_version():
@@ -153,7 +164,9 @@ def main(args=sys.argv[1:]):  # pragma: no cover
 
     app = create_app()
 
-    utils.prepare_database()
+    validation_manager.prepare_database()
+    if not os.path.isfile(CONF.validations_database):
+        database.init_db()
 
     app.run(**app_kwargs)
 

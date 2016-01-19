@@ -44,8 +44,11 @@ SERVICE_OPTS = [
                default=1000,
                help='The green thread pool size.'),
     cfg.StrOpt('validations_base_dir',
-               default='',
+               default='.',
                help='Path to dir containing validations and stages'),
+    cfg.StrOpt('validations_database',
+               default='',
+               help='./validation_results.db'),
 ]
 
 

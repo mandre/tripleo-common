@@ -1,0 +1,10 @@
+---
+- hosts: overcloud
+  vars:
+    metadata:
+      name: Overcloud test
+      description: A validation requiring a plan
+      require_plan: true
+  tasks:
+  - name: Ping the nodes
+    ping:

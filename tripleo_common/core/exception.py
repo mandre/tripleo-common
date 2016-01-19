@@ -112,3 +112,52 @@ class MappingFileNotFoundError(TripleoCommonException):
 
 class TooManyCapabilitiesMapFilesError(TripleoCommonException):
     msg_fmt = _("There cannot be more than one root template in a given plan.")
+
+
+class MetadataTooLongError(TripleoCommonException):
+    msg_fmt = _("Validation metadata key or value cannot exceed 255 bytes.")
+
+
+class ValidationDoesNotExistError(TripleoCommonException):
+    status_code = 404
+    msg_fmt = _("A validation with the id %(id)s does not exist.")
+
+
+class StageDoesNotExistError(TripleoCommonException):
+    status_code = 404
+    msg_fmt = _("A stage with the id %(id)s does not exist.")
+
+
+class ValidationResultDoesNotExistError(TripleoCommonException):
+    status_code = 404
+    msg_fmt = _("A validation result with the id %(id)s does not exist.")
+
+
+class ValidationRequiresPlan(TripleoCommonException):
+    status_code = 404
+    msg_fmt = _("Validation with id %(id)s requires a plan id.")
+
+
+class StageRequiresPlan(TripleoCommonException):
+    status_code = 404
+    msg_fmt = _("Stage with id %(id)s requires a plan id.")
+
+
+class ValidationAlreadyRunning(TripleoCommonException):
+    status_code = 400
+    msg_fmt = _("Validation with id %(id)s is already running.")
+
+
+class StageAlreadyRunning(TripleoCommonException):
+    status_code = 400
+    msg_fmt = _("Stage with id %(id)s is already running.")
+
+
+class ValidationNotRunning(TripleoCommonException):
+    status_code = 400
+    msg_fmt = _("Validation with id %(id)s is not running.")
+
+
+class StageNotRunning(TripleoCommonException):
+    status_code = 400
+    msg_fmt = _("Stage with id %(id)s is not running.")

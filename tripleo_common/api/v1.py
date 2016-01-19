@@ -12,11 +12,12 @@
 # limitations under the License.
 
 import flask
-import threading
 
 from tripleo_common.api import utils
 from tripleo_common.core import plan
 from tripleo_common.core import plan_storage
+from tripleo_common.core import validation_manager
+from tripleo_common.core import validation_result
 from tripleo_common.utils import clients
 
 v1 = flask.Blueprint('V1', __name__)
@@ -25,6 +26,14 @@ v1 = flask.Blueprint('V1', __name__)
 def _plan_manager():
     swift_backend = plan_storage.SwiftPlanStorageBackend(clients.swiftclient())
     return plan.PlanManager(swift_backend, clients.heatclient())
+
+
+def _plan_id_from_param():
+    plan_id = flask.request.args.get('plan_id')
+    if plan_id:
+        # Make sure the plan exists
+        _plan_manager().get_plan(plan_id)
+    return plan_id
 
 
 @v1.route('/plans', methods=['GET', 'POST'])
@@ -101,109 +110,72 @@ def api_plan_parameters(name):
 
 @v1.route('/validations/')
 def list_validations():
-    result = [utils.formatted_validation(validation)
-              for validation in utils.db_validations().values()]
-    return utils.json_response(200, result)
+    plan_id = _plan_id_from_param()
+    validations = [utils.validation_repr(validation, plan_id=plan_id)
+                   for validation in validation_manager.get_all_validations()]
+    return flask.jsonify(validations=validations)
 
 
 @v1.route('/validations/<validation_id>/')
 def show_validation(validation_id):
-    try:
-        validation = utils.db_validations()[validation_id]
-    except KeyError:
-        return utils.json_response(404, {})
-    return utils.json_response(200, utils.formatted_validation(validation))
+    plan_id = _plan_id_from_param()
+    validation = validation_manager.get_validation(validation_id)
+    return flask.jsonify(
+        validation=utils.validation_repr(validation, plan_id=plan_id))
 
 
 @v1.route('/validations/<validation_id>/run', methods=['PUT'])
 def run_validation(validation_id):
-    try:
-        validation = utils.db_validations()[validation_id]
-    except KeyError:
-        return utils.json_response(404, {'error': "validation not found"})
-
-    previous_thread = validation['current_thread']
-    if previous_thread and previous_thread.is_alive():
-        return utils.json_response(400, {'error': "validation already running"})
-
-    validation_url = flask.url_for('V1.show_validation', validation_id=validation_id)
-    cancel_event = threading.Event()
-    validation_arguments = {
-        'plan_id': flask.request.args.get('plan_id'),
-    }
-    thread = threading.Thread(
-        target=utils.thread_run_validation,
-        args=(validation, validation_url, cancel_event, validation_arguments))
-    thread.cancel_event = cancel_event
-    validation['current_thread'] = thread
-    thread.start()
-    return utils.json_response(204, {})
+    validation = validation_manager.get_validation(validation_id)
+    validation.run(_plan_id_from_param())
+    return '', 204
 
 
 @v1.route('/validations/<validation_id>/stop', methods=['PUT'])
 def stop_validation(validation_id):
-    try:
-        validation = utils.db_validations()[validation_id]
-    except KeyError:
-        return utils.json_response(404, {'error': "validation not found"})
-    thread = validation['current_thread']
-    if thread and thread.is_alive():
-        validation['results'].values()[-1]['status'] = 'canceled'
-        thread.cancel_event.set()
-        return utils.json_response(204, {})
-    else:
-        return utils.json_response(400, {'error': "validation is not running"})
+    validation = validation_manager.get_validation(validation_id)
+    validation.stop(_plan_id_from_param())
+    return '', 204
 
 
 @v1.route('/stages/')
 def list_stages():
-    stages = utils.db()['types'].values()
-    result = []
-    for stage in stages:
-        result.append(utils.formatted_stage(stage))
-    return utils.json_response(200, result)
+    plan_id = _plan_id_from_param()
+    stages = [utils.stage_repr(stage, plan_id=plan_id)
+              for stage in validation_manager.get_all_stages()]
+    return flask.jsonify(stages=stages)
 
 
 @v1.route('/stages/<stage_id>/')
 def show_stage(stage_id):
-    try:
-        stage = utils.db()['types'][stage_id]
-    except KeyError:
-        return utils.json_response(404, {})
-    return utils.json_response(200, utils.formatted_stage(stage))
+    plan_id = _plan_id_from_param()
+    stage = validation_manager.get_stage(stage_id)
+    return flask.jsonify(stage=utils.stage_repr(stage, plan_id=plan_id))
 
 
 @v1.route('/stages/<stage_id>/run', methods=['PUT'])
 def run_stage(stage_id):
-    try:
-        stage = utils.db()['types'][stage_id]
-    except KeyError:
-        return utils.json_response(404, {})
-    for validation in stage['validations'].values():
-        validation_url = flask.url_for('V1.show_validation', validation_id=validation['uuid'])
-        validation_arguments = {
-            'plan_id': flask.request.args.get('plan_id'),
-        }
-        thread = threading.Thread(
-            target=utils.thread_run_validation,
-            args=(validation, validation_url, None, validation_arguments))
-        thread.start()
-    return utils.json_response(204, {})
+    stage = validation_manager.get_stage(stage_id)
+    stage.run(_plan_id_from_param())
+    return '', 204
 
 
-@v1.route('/results/')
+@v1.route('/stages/<stage_id>/stop', methods=['PUT'])
+def stop_stage(stage_id):
+    stage = validation_manager.get_stage(stage_id)
+    stage.stop(_plan_id_from_param())
+    return '', 204
+
+
+@v1.route('/validation_results/')
 def list_results():
-    all_results = []
-    for validation in utils.db_validations().values():
-        all_results.extend(validation['results'].values())
-    all_results.sort(key=lambda x: x['date'])
-    return utils.json_response(200, all_results)
+    plan_id = _plan_id_from_param()
+    all_results = [utils.result_repr(result)
+                   for result in validation_result.get_all_results(plan_id)]
+    return flask.jsonify(results=all_results)
 
 
-@v1.route('/results/<result_id>/')
+@v1.route('/validation_results/<result_id>/')
 def show_result(result_id):
-    for validation in utils.db_validations().values():
-        for result in validation.get('results', {}).values():
-            if result['uuid'] == result_id:
-                return utils.json_response(200, result)
-    return utils.json_response(404, {})
+    result = validation_result.get_results([result_id])[-1]
+    return flask.jsonify(result=utils.result_repr(result))

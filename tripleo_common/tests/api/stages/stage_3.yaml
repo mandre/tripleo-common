@@ -1,0 +1,3 @@
+---
+- hosts: overcloud
+- include: ../validations/validation_3.yaml

@@ -11,12 +11,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
 import functools
+import json
 import os
 import ssl
 import sys
-import uuid
 
 import flask
 import werkzeug
@@ -25,7 +24,6 @@ from oslo_config import cfg
 from oslo_log import log
 
 from tripleo_common.core import exception
-from tripleo_common.core import validations
 from tripleo_common.core.i18n import _LE
 from tripleo_common.core.i18n import _LW
 
@@ -141,121 +139,59 @@ def error_response(exc, code=500):
     return res
 
 
-# TODO(mandre) find a better place for DB
-DB = {
-    'validations': {},
-    'types': {},
-}
-DB_VALIDATIONS = DB['validations']  # TODO: OMG THREAD SAFETY
-
-def db():
-    return DB
-
-def db_validations():
-    return DB_VALIDATIONS
-
-def prepare_database():
-    all_validations = validations.get_all_validations().values()
-    all_stages = validations.get_all_stages().values()
-    for validation in all_validations:
-        validation['results'] = {}
-        validation['current_thread'] = None
-        DB_VALIDATIONS[validation['uuid']] = validation
-    for stage in all_stages:
-        included_validations = {}
-        for loaded_validation in stage['validations']:
-            validation_id = loaded_validation['uuid']
-            # XXX(mandre) we want a reference and not a copy
-            included_validations[validation_id] = DB_VALIDATIONS[validation_id]
-        stage['validations'] = included_validations
-        DB['types'][stage['uuid']] = stage
-
-
-def thread_run_validation(validation, validation_url, cancel_event, arguments):
-    global DB_VALIDATIONS
-    results = DB_VALIDATIONS[validation['uuid']]['results']
-
-    result_id = str(uuid.uuid4())
-    # TODO: proper datetime formatting
-    result_start_time = datetime.datetime.utcnow().isoformat() + 'Z'
-    new_result = {
-        'uuid': result_id,
-        'date': result_start_time,
-        'validation': validation_url,
-        'status': 'running',
-        'arguments': arguments,
-    }
-    results[result_id] = new_result
-
-    validation_run_result = validations.run(validation, cancel_event)
-
-    results[result_id]['detailed_description'] = validation_run_result
-    success = all((result.get('success') for result in validation_run_result.values()))
-    if success:
-        results[result_id]['status'] = 'success'
+def validation_repr(validation, plan_id=None):
+    results = validation.results(plan_id)
+    if results and not (validation.missing_plan_id(plan_id)):
+        latest_result = result_repr(results[-1])
     else:
-        results[result_id]['status'] = 'failed'
+        latest_result = dict()
 
-
-def json_response(code, result):
-    # NOTE: flask.jsonify doesn't handle lists, so we need to do it manually:
-    response = flask.make_response(flask.json.dumps(result), code)
-    response.headers['Content-Type'] = 'application/json'
-    response.code = code
-    return response
-
-
-def formatted_validation(validation):
-    results = validation['results']
-    sorted_results = sorted(results.values(), key=lambda r: r['date'])
-    if sorted_results:
-        latest_result = sorted_results[-1]
-    else:
-        latest_result = None
     return {
-        'uuid': validation['uuid'],
-        'name': validation['name'],
-        'description': validation['description'],
-        'ref': flask.url_for('V1.show_validation', validation_id=validation['uuid']),
-        'status': validation_status(validation),
+        'uuid': validation.uuid,
+        'name': validation.name,
+        'description': validation.description,
+        'ref': flask.url_for('V1.show_validation',
+                             validation_id=validation.uuid),
+        'status': validation.status(plan_id),
         'latest_result': latest_result,
-        'results': [flask.url_for('V1.show_result', result_id=r['uuid'])
-                    for r in sorted_results],
+        'results': [flask.url_for('V1.show_result', result_id=r.uuid)
+                    for r in results],
+        'require_plan': validation.require_plan,
+        'metadata': validation.metadata
     }
 
-def formatted_stage(stage):
-    formatted_validations = [formatted_validation(validation)
-                             for validation in stage['validations'].values()]
+
+def stage_repr(stage, plan_id=None):
+    formatted_validations = [validation_repr(validation, plan_id)
+                             for validation in stage.validations.values()]
     return {
-        'uuid': stage['uuid'],
-        'ref': flask.url_for('V1.show_stage', stage_id=stage['uuid']),
-        'name': stage['name'],
-        'description': stage['description'],
-        'stage': stage['stage'],
-        'status': aggregate_status(stage),
+        'uuid': stage.uuid,
+        'ref': flask.url_for('V1.show_stage', stage_id=stage.uuid),
+        'name': stage.name,
+        'description': stage.description,
+        'stage': stage.stage,
+        'status': stage.status(plan_id),
         'validations': formatted_validations,
     }
 
 
-def validation_status(validation):
-    sorted_results = sorted(validation['results'].values(), key=lambda r: r['date'])
-    if sorted_results:
-        return sorted_results[-1].get('status', 'new')
-    else:
-        return 'new'
+def result_repr(result):
+    detailed_description = result.detailed_description or "{}"
+    return {
+        'uuid': result.uuid,
+        'date': result.date,
+        'validation': flask.url_for('V1.show_validation',
+                                    validation_id=result.validation),
+        'status': result.status,
+        'detailed_description': json.loads(detailed_description),
+        'plan_id': result.plan_id,
+    }
 
-def aggregate_status(stage):
-    all_statuses = [validation_status(k) for k in stage['validations'].values()]
-    if all(status == 'new' for status in all_statuses):
-        return 'new'
-    elif all(status == 'success' for status in all_statuses):
-        return 'success'
-    elif any(status == 'canceled' for status in all_statuses):
-        return 'canceled'
-    elif any(status == 'failed' for status in all_statuses):
-        return 'failed'
-    elif any(status == 'running' for status in all_statuses):
-        return 'running'
-    else:
-        # Should never happen
-        return 'unknown'
+
+def with_app_context(f):
+    app = flask.Flask(__name__)
+
+    def run_within_context(*args, **kwargs):
+        with app.app_context():
+            return f(*args, **kwargs)
+    return run_within_context
