@@ -81,16 +81,15 @@ class SilentPlaybookCallbacks(object):
 
 
 def run(playbook, cancel_event):
+    # TODO(mandre) export environment variables needed for dynamic inventory
+    # script
     C.HOST_KEY_CHECKING = False
     stats = callbacks.AggregateStats()
     playbook_callbacks = SilentPlaybookCallbacks(cancel_event)
     runner_callbacks = callbacks.DefaultRunnerCallbacks()
     playbook = ansible.playbook.PlayBook(
         playbook=playbook,
-        # TODO we should use a dynamic inventory based on data coming from
-        # tripleo-common/heat/ironic
-        # http://docs.ansible.com/ansible/developing_api.html
-        host_list='hosts',
+        host_list='scripts/tripleo-ansible-inventory.py',
         stats=stats,
         callbacks=playbook_callbacks,
         runner_callbacks=runner_callbacks)
