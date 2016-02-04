@@ -4,6 +4,7 @@
     metadata:
       name: Rogue DHCP
       description: Locate rogue DHCP servers on Pacemaker-managed networks
+      require_plan: false
     networks:  # TODO(shadower): read this from the overcloud setup
     # NOTE(shadower): the values are ignored for now so it's okay they're bogus
     - 10.10.1.1/24

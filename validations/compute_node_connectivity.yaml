@@ -3,6 +3,7 @@
   vars:
     metadata:
       name: Check connectivity of the compute nodes.
+      require_plan: true
 
   tasks:
   - name: Run ping test

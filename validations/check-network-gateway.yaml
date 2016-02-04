@@ -6,6 +6,7 @@
       description: >
         If `network_gateway` in `undercloud.conf` is different from `local_ip`,
         verify that the gateway exists and is reachable.
+      require_plan: false
     undercloud_conf_path: "/home/stack/undercloud.conf"
   tasks:
   - name: Gather undercloud.conf values
