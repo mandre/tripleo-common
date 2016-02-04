@@ -1,13 +1,26 @@
 #!/usr/bin/env python
+# Copyright 2015 Red Hat, Inc.
+# All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
 
 from os import path
 
-from ansible.module_utils.basic import *
+from ansible.module_utils.basic import *  # noqa
 
 
 def read_int(module, file_path):
-    '''
-    Read a file and convert its value to int.
+    '''Read a file and convert its value to int.
 
     Raise ansible failure otherwise.
     '''
@@ -20,6 +33,7 @@ def read_int(module, file_path):
     except ValueError:
         module.fail_json(msg="The '%s' file doesn't contain an integer value" %
                          file_path)
+
 
 def main():
     module = AnsibleModule(argument_spec=dict(
@@ -50,8 +64,9 @@ def main():
             # display it differently.
             changed=True,
             warnings=["Physical and logical block sizes of drive %s differ "
-            "(%s vs. %s). This can mean the disk uses Advance Format." % (
-                drive, physical_block_size, logical_block_size)],
+                      "(%s vs. %s). This can mean the disk uses Advance "
+                      "Format." %
+                      (drive, physical_block_size, logical_block_size)],
         )
 
 
