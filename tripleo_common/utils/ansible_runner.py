@@ -15,10 +15,17 @@
 
 # Import explicitly in this order to fix the import issues:
 # https://bugzilla.redhat.com/show_bug.cgi?id=1065251
+
+import os
+
 import ansible.playbook
-import ansible.constants as C  # flake8: noqa
 import ansible.utils.template
 from ansible import callbacks  # flake8: noqa
+
+from oslo_config import cfg
+
+
+CONF = cfg.CONF
 
 
 class ValidationCancelled(Exception):
@@ -80,10 +87,15 @@ class SilentPlaybookCallbacks(object):
         callbacks.call_callback_module('playbook_on_stats', stats)
 
 
+def export_variables():
+    os.environ['OS_AUTH_URL'] = CONF.keystone.auth_url
+    os.environ['OS_USERNAME'] = CONF.keystone.username
+    os.environ['OS_PASSWORD'] = CONF.keystone.password
+    os.environ['OS_TENANT_NAME'] = CONF.keystone.tenant_name
+
+
 def run(playbook, cancel_event):
-    # TODO(mandre) export environment variables needed for dynamic inventory
-    # script
-    C.HOST_KEY_CHECKING = False
+    export_variables()
     stats = callbacks.AggregateStats()
     playbook_callbacks = SilentPlaybookCallbacks(cancel_event)
     runner_callbacks = callbacks.DefaultRunnerCallbacks()
